@@ -1,0 +1,29 @@
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Check required files
+        run: |
+          test -f Dockerfile
+          test -f index.html
+          echo "Required files exist"
+
+      - name: Build Docker image
+        run: |
+          docker build -t jenkins-day1-ci:test .
+
+      - name: Show success message
+        run: echo "CI completed successfully"
