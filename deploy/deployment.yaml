@@ -17,6 +17,6 @@ spec:
         - name: harbor-secret
       containers:
         - name: jenkins-day1
-          image: amdp-registry.skala-ai.com/skala26a-ai2/jenkins-day1:7-2f48c7a
+          image: __IMAGE__
           ports:
             - containerPort: 80
