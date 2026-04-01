@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins-day1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins-day1
+  template:
+    metadata:
+      labels:
+        app: jenkins-day1
+    spec:
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+        - name: jenkins-day1
+          image: __IMAGE__
+          ports:
+            - containerPort: 80
