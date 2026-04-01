@@ -2,62 +2,81 @@ pipeline {
     agent any
 
     environment {
-        REGISTRY = "amdp-registry.skala-ai.com"
-        PROJECT = "skala26a-ai2"
-        IMAGE_NAME = "jenkins-day1"
-        IMAGE_TAG = "${BUILD_NUMBER}"
-        FULL_IMAGE = "${REGISTRY}/${PROJECT}/${IMAGE_NAME}:${IMAGE_TAG}"
+        GIT_REPO           = 'https://github.com/sunny5374/jenkins-test.git'
+        GIT_BRANCH         = 'main'
+
+        APP_NAME           = 'jenkins-day1'
+        HARBOR_REGISTRY    = 'amdp-registry.skala-ai.com'
+        HARBOR_PROJECT     = 'skala26a-ai2'
+        IMAGE_REPO         = "${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${APP_NAME}"
+
+        K8S_NAMESPACE      = 'class-2'
+
+        GIT_CREDENTIALS    = 'github_personal_acess_token'
+        HARBOR_CREDENTIALS = 'harbor-cred'
     }
 
     stages {
         stage('Checkout') {
             steps {
-                echo '소스코드 가져오기'
-                checkout scm
+                git branch: "${GIT_BRANCH}",
+                    credentialsId: "${GIT_CREDENTIALS}",
+                    url: "${GIT_REPO}"
             }
         }
 
-        stage('Code Build') {
+        stage('Set Image Tag') {
             steps {
-                echo '코드 빌드(검증) 수행'
-                sh '''
-                    pwd
-                    ls -al
-                    test -f Dockerfile
-                    echo "Code build/check done"
-                '''
+                script {
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: 'git rev-parse --short HEAD',
+                        returnStdout: true
+                    ).trim()
+
+                    env.IMAGE_TAG  = "${BUILD_NUMBER}-${GIT_COMMIT_SHORT}"
+                    env.FULL_IMAGE = "${IMAGE_REPO}:${IMAGE_TAG}"
+
+                    echo "IMAGE_TAG  = ${env.IMAGE_TAG}"
+                    echo "FULL_IMAGE = ${env.FULL_IMAGE}"
+                }
             }
         }
 
         stage('Docker Build') {
             steps {
-                echo '도커 이미지 빌드'
                 sh '''
                     docker build -t ${FULL_IMAGE} .
                 '''
             }
         }
 
-        stage('Docker Login') {
+        stage('Push Image to Harbor') {
             steps {
-                echo 'Harbor 로그인'
                 withCredentials([usernamePassword(
-                    credentialsId: 'harbor-cred',
+                    credentialsId: "${HARBOR_CREDENTIALS}",
                     usernameVariable: 'HARBOR_USER',
                     passwordVariable: 'HARBOR_PASS'
                 )]) {
                     sh '''
-                        echo "${HARBOR_PASS}" | docker login amdp-registry.skala-ai.com -u "${HARBOR_USER}" --password-stdin
+                        echo "${HARBOR_PASS}" | docker login ${HARBOR_REGISTRY} -u "${HARBOR_USER}" --password-stdin
+                        docker push ${FULL_IMAGE}
+                        docker logout ${HARBOR_REGISTRY}
                     '''
                 }
             }
         }
 
-        stage('Docker Push') {
+        stage('Deploy to EKS') {
             steps {
-                echo 'Harbor Registry로 이미지 Push'
                 sh '''
-                    docker push ${FULL_IMAGE}
+                    cp deploy/deployment.yaml deploy/deployment-rendered.yaml
+                    sed "s|__IMAGE__|${FULL_IMAGE}|g" deploy/deployment.yaml > deploy/deployment-rendered.yaml
+
+                    kubectl apply -n ${K8S_NAMESPACE} -f deploy/deployment-rendered.yaml
+                    kubectl apply -n ${K8S_NAMESPACE} -f deploy/service.yaml
+
+                    kubectl rollout status deployment/${APP_NAME} -n ${K8S_NAMESPACE} --timeout=300s
+                    kubectl get pods -n ${K8S_NAMESPACE}
                 '''
             }
         }
@@ -65,13 +84,10 @@ pipeline {
 
     post {
         success {
-            echo "SUCCESS: ${FULL_IMAGE}"
+            echo "Deployment succeeded: ${env.FULL_IMAGE}"
         }
         failure {
-            echo "FAILED"
-        }
-        always {
-            sh 'docker logout amdp-registry.skala-ai.com || true'
+            echo "Deployment failed"
         }
     }
 }
