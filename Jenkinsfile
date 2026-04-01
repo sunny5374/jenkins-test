@@ -10,10 +10,13 @@ pipeline {
         HARBOR_PROJECT     = 'skala26a-ai2'
         IMAGE_REPO         = "${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${APP_NAME}"
 
+        AWS_REGION         = 'ap-northeast-2'
+        EKS_CLUSTER_NAME   = 'skala-2025'
         K8S_NAMESPACE      = 'class-2'
 
         GIT_CREDENTIALS    = 'github_personal_acess_token'
         HARBOR_CREDENTIALS = 'harbor-cred'
+        AWS_CREDENTIALS    = 'aws-access-key-cred'
     }
 
     stages {
@@ -61,6 +64,30 @@ pipeline {
                         echo "${HARBOR_PASS}" | docker login ${HARBOR_REGISTRY} -u "${HARBOR_USER}" --password-stdin
                         docker push ${FULL_IMAGE}
                         docker logout ${HARBOR_REGISTRY}
+                    '''
+                }
+            }
+        }
+
+        stage('Configure AWS CLI for EKS') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: "${AWS_CREDENTIALS}",
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
+                    sh '''
+                        export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+                        export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+                        export AWS_DEFAULT_REGION=${AWS_REGION}
+
+                        aws sts get-caller-identity
+
+                        aws eks update-kubeconfig \
+                          --region ${AWS_REGION} \
+                          --name ${EKS_CLUSTER_NAME}
+
+                        kubectl config current-context
                     '''
                 }
             }
