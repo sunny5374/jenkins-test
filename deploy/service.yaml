@@ -2,6 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: jenkins-day1
+  namespace: class-2
 spec:
   selector:
     app: jenkins-day1
