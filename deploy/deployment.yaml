@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: jenkins-day1
+  namespace: class-2
 spec:
   replicas: 1
   selector:
@@ -16,6 +17,6 @@ spec:
         - name: harbor-secret
       containers:
         - name: jenkins-day1
-          image: __IMAGE__
+          image: amdp-registry.skala-ai.com/skala26a-ai2/jenkins-day1:7-2f48c7a
           ports:
             - containerPort: 80
