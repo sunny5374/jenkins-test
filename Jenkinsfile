@@ -95,16 +95,26 @@ pipeline {
 
         stage('Deploy to EKS') {
             steps {
-                sh '''
-                    cp deploy/deployment.yaml deploy/deployment-rendered.yaml
-                    sed "s|__IMAGE__|${FULL_IMAGE}|g" deploy/deployment.yaml > deploy/deployment-rendered.yaml
+                withCredentials([usernamePassword(
+                    credentialsId: "${AWS_CREDENTIALS}",
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
+                    sh '''
+                        export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+                        export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+                        export AWS_DEFAULT_REGION=${AWS_REGION}
 
-                    kubectl apply -n ${K8S_NAMESPACE} -f deploy/deployment-rendered.yaml
-                    kubectl apply -n ${K8S_NAMESPACE} -f deploy/service.yaml
+                        cp deploy/deployment.yaml deploy/deployment-rendered.yaml
+                        sed "s|__IMAGE__|${FULL_IMAGE}|g" deploy/deployment.yaml > deploy/deployment-rendered.yaml
 
-                    kubectl rollout status deployment/${APP_NAME} -n ${K8S_NAMESPACE} --timeout=300s
-                    kubectl get pods -n ${K8S_NAMESPACE}
-                '''
+                        kubectl apply -n ${K8S_NAMESPACE} -f deploy/deployment-rendered.yaml
+                        kubectl apply -n ${K8S_NAMESPACE} -f deploy/service.yaml
+
+                        kubectl rollout status deployment/${APP_NAME} -n ${K8S_NAMESPACE} --timeout=300s
+                        kubectl get pods -n ${K8S_NAMESPACE}
+                    '''
+                }
             }
         }
     }
